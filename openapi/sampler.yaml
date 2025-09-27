@@ -1,0 +1,522 @@
+
+openapi: 3.1.0
+info:
+  title: MIDI 2–Native Sampler API
+  version: 0.1.0
+  description: |
+    API-first specification for a **MIDI 2–native sampler**. This spec documents
+    DSP-oriented endpoints (loop stitching, zone crossfades, pack persistence) so
+    *reasoning systems* (e.g., FountainKit planners) can discover and invoke capabilities
+    strictly via OpenAPI—no compile-time coupling to client libraries is required.
+
+servers:
+  - url: https://sampler.local/v1
+    description: local dev
+  - url: https://api.fountain.coach/sampler/v1
+    description: production (example)
+
+paths:
+  /loops:stitch:
+    post:
+      summary: Discover and write a seamless loop seam for an audio asset
+      operationId: stitchLoop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StitchLoopRequest'
+      responses:
+        "200":
+          description: Loop points discovered (and optionally persisted)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StitchLoopResult'
+        "422":
+          description: Loop not found or invalid search window
+  /packs:save:
+    post:
+      summary: Save (upsert) a SamplerPack document
+      operationId: savePack
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavePackRequest'
+      responses:
+        "204":
+          description: Saved
+  /packs:
+    get:
+      summary: List SamplerPack documents in a directory/prefix
+      operationId: listPacks
+      parameters:
+        - in: query
+          name: directory
+          schema: { type: string }
+          required: true
+          description: Directory or store prefix
+      responses:
+        "200":
+          description: Paths to pack documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: string }
+  /render:note:
+    post:
+      summary: Render a single note offline and return an artifact URL
+      operationId: renderNote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenderNoteRequest'
+      responses:
+        "200":
+          description: Rendering completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderNoteResult'
+
+components:
+  schemas:
+    StitchLoopRequest:
+      type: object
+      required: [audioPath, searchStart, searchEnd, overlap]
+      properties:
+        audioPath: { type: string, description: "PCM WAV/FLAC path (mono recommended for seam ops)" }
+        searchStart: { type: integer, minimum: 0 }
+        searchEnd: { type: integer, minimum: 0 }
+        overlap: { type: integer, minimum: 16, description: "Samples for equal-power crossfade; 2–3 periods of lowest partial" }
+        window:
+          type: string
+          enum: [equalPower, hann]
+          default: equalPower
+        dcRemoval: { type: boolean, default: true }
+        spectralFFT: { type: integer, default: 1024 }
+    StitchLoopResult:
+      type: object
+      required: [loopStart, loopEnd, overlap, window]
+      properties:
+        loopStart: { type: integer }
+        loopEnd: { type: integer }
+        overlap: { type: integer }
+        window: { type: string, enum: [equalPower, hann] }
+        metrics:
+          type: object
+          properties:
+            ampError: { type: number, description: "Amplitude L2 score at seam" }
+            slopeError: { type: number }
+            spectralDistance: { type: number }
+    SavePackRequest:
+      type: object
+      required: [packPath, pack]
+      properties:
+        packPath: { type: string }
+        pack: { $ref: '#/components/schemas/SamplerPack' }
+    SamplerPack:
+      type: object
+      required: [format, version, instrument, controllers]
+      properties:
+        format: { type: string, const: Midi2SamplerPack }
+        version: { type: string, default: "0.1.0" }
+        instrument: { $ref: '#/components/schemas/Instrument' }
+        controllers: { $ref: '#/components/schemas/Controllers' }
+        profiles: { type: array, items: { type: string } }
+        propertyExchange: { $ref: '#/components/schemas/PropertyExchange' }
+    Instrument:
+      type: object
+      required: [name, sampleRate, zones, xfade]
+      properties:
+        name: { type: string }
+        sampleRate: { type: integer }
+        zones:
+          type: array
+          items: { $ref: '#/components/schemas/Zone' }
+        xfade: { $ref: '#/components/schemas/XFade' }
+    Zone:
+      type: object
+      required: [id, pitchCenter, pitchRange, velocityRange, file]
+      properties:
+        id: { type: string }
+        pitchCenter: { type: integer, description: "MIDI note number" }
+        pitchRange:
+          type: array
+          items: { type: integer }
+          minItems: 2
+          maxItems: 2
+        velocityRange:
+          type: array
+          items: { type: number }
+          minItems: 2
+          maxItems: 2
+        file: { type: string }
+        loop: { $ref: '#/components/schemas/Loop' }
+        normRMS: { type: number }
+        phaseAlignHint: { type: integer }
+    Loop:
+      type: object
+      required: [start, end, overlap, window]
+      properties:
+        start: { type: integer }
+        end: { type: integer }
+        overlap: { type: integer }
+        window: { type: string, enum: [equalPower, hann] }
+    XFade:
+      type: object
+      required: [timeMs, curve, spectralMorph]
+      properties:
+        timeMs: { type: integer, default: 30 }
+        curve: { type: string, enum: [equalPower, smoothstep, hann], default: equalPower }
+        spectralMorph: { type: boolean, default: false }
+    Controllers:
+      type: object
+      required: [perNote, global]
+      properties:
+        perNote:
+          type: object
+          properties:
+            pitchBend: { type: boolean, default: true }
+            timbre: { type: string, nullable: true, description: "Commonly CC74" }
+            pressure: { type: boolean, default: true }
+        global:
+          type: object
+          properties:
+            sustain: { type: integer, default: 64 }
+            pedalResonance: { type: boolean, default: true }
+    PropertyExchange:
+      type: object
+      properties:
+        uri: { type: string }
+        params:
+          type: object
+          additionalProperties: { type: boolean }
+
+    RenderNoteRequest:
+      type: object
+      required: [packPath, note, velocity, durationMs, sampleRate]
+      properties:
+        packPath: { type: string }
+        note: { type: integer, description: "MIDI note number" }
+        velocity: { type: number, minimum: 0, maximum: 1 }
+        durationMs: { type: integer, minimum: 1 }
+        sampleRate: { type: integer, enum: [44100, 48000, 96000] }
+        pitchBend: { type: number, description: "Per-note bend in semitones (MIDI 2 resolution upstream)" }
+        timbre: { type: number, nullable: true }
+        pressure: { type: number, nullable: true }
+    RenderNoteResult:
+      type: object
+      required: [artifactUrl, numSamples]
+      properties:
+        artifactUrl: { type: string, format: uri }
+        numSamples: { type: integer }
+
+
+  /corpus/audio:ingest:
+    post:
+      summary: Register an audio asset into a corpus
+      operationId: corpusAudioIngest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [corpusId, path, tags]
+              properties:
+                corpusId: { type: string }
+                path: { type: string, description: "Absolute or store-relative path" }
+                tags: { type: array, items: { type: string } }
+      responses:
+        "204": { description: Ingested }
+
+  /corpus/audio:analyze:
+    post:
+      summary: Run DSP introspection and persist AudioSummary
+      operationId: corpusAudioAnalyze
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [corpusId, path]
+              properties:
+                corpusId: { type: string }
+                path: { type: string }
+                computeLoopability: { type: boolean, default: true }
+                loopOverlap: { type: integer, default: 2048 }
+                searchStart: { type: integer, nullable: true }
+                searchEnd: { type: integer, nullable: true }
+      responses:
+        "200":
+          description: AudioSummary created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AudioSummary'
+
+  /corpus/audio:search:
+    get:
+      summary: k-NN search by embedding with optional filters
+      operationId: corpusAudioSearch
+      parameters:
+        - in: query
+          name: corpusId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: likePath
+          required: false
+          schema: { type: string }
+        - in: query
+          name: k
+          required: false
+          schema: { type: integer, default: 10 }
+        - in: query
+          name: tags
+          required: false
+          schema: { type: string, description: "Comma separated tag filter" }
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SearchResult'
+
+  /corpus/audio:dedupe:
+    get:
+      summary: Find near-duplicate audio by spectral hashes
+      operationId: corpusAudioDedupe
+      parameters:
+        - in: query
+          name: corpusId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: threshold
+          required: false
+          schema: { type: integer, default: 3, description: "Max Hamming distance in 64-bit words" }
+      responses:
+        "200":
+          description: Groups of near-duplicates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: array
+                  items: { type: string }
+components:
+  schemas:
+    AudioSummary:
+      type: object
+      required: [path, duration, sampleRate, channels, rms, peak, dcOffset, clippingPercent, mfccMean, mfccVar, centroid, rolloff95, flatness, chromaMean, embedding, specHash]
+      properties:
+        path: { type: string }
+        checksum: { type: string, nullable: true }
+        duration: { type: number }
+        sampleRate: { type: integer }
+        channels: { type: integer }
+        rms: { type: number }
+        peak: { type: number }
+        dcOffset: { type: number }
+        clippingPercent: { type: number }
+        f0MeanHz: { type: number, nullable: true }
+        f0Stability: { type: number, nullable: true }
+        mfccMean: { type: array, items: { type: number } }
+        mfccVar: { type: array, items: { type: number } }
+        centroid: { type: number }
+        rolloff95: { type: number }
+        flatness: { type: number }
+        chromaMean: { type: array, items: { type: number } }
+        loop:
+          type: object
+          nullable: true
+          properties:
+            start: { type: integer }
+            end: { type: integer }
+            overlap: { type: integer }
+            scoreAmp: { type: number }
+            scoreSlope: { type: number }
+            scoreSpec: { type: number }
+            loopability: { type: number }
+        embedding: { type: array, items: { type: number } }
+        specHash: { type: array, items: { type: integer, format: uint64 } }
+    SearchResult:
+      type: object
+      properties:
+        path: { type: string }
+        distance: { type: number }
+        summary: { $ref: '#/components/schemas/AudioSummary' }
+
+
+  /packs:validate:
+    post:
+      summary: Validate a SamplerPack document
+      operationId: validatePack
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SamplerPack'
+      responses:
+        "200":
+          description: Validation report for the provided pack
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationReport'
+
+  /corpus/audio:validate:
+    post:
+      summary: Validate an AudioSummary
+      operationId: validateAudio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AudioSummary'
+      responses:
+        "200":
+          description: Validation report for the provided audio summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationReport'
+
+components:
+  schemas:
+    ValidationIssue:
+      type: object
+      properties:
+        severity: { type: string, enum: [hard, soft, info] }
+        path: { type: string }
+        message: { type: string }
+        suggestion: { type: string, nullable: true }
+    ValidationReport:
+      type: object
+      properties:
+        ok: { type: boolean }
+        issues:
+          type: array
+          items: { $ref: '#/components/schemas/ValidationIssue' }
+
+
+  /morph/preset:apply:
+    post:
+      summary: Apply a morphing preset to the sampler engine
+      operationId: morphPresetApply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MorphingPreset'
+      responses:
+        "204": { description: Applied }
+
+  /morph/params:renderNote:
+    post:
+      summary: Render a single note using velocity-timbre morphing (no multi-layer velocity sampling required)
+      operationId: morphRenderNote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MorphRenderNoteRequest'
+      responses:
+        "200":
+          description: Rendered artifact
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderNoteResult'
+
+  /morph/fitCurves:
+    post:
+      summary: Fit velocity→timbre curves from corpus embeddings and anchors
+      operationId: morphFitCurves
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MorphFitRequest'
+      responses:
+        "200":
+          description: Fitted preset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MorphingPreset'
+
+components:
+  schemas:
+    MorphingPreset:
+      type: object
+      required: [name, velocityModel, positionEQ]
+      properties:
+        name: { type: string }
+        velocityModel:
+          type: object
+          required: [tiltRange, presenceRange, transientRange, noiseRange, satRange]
+          properties:
+            tiltRange: { type: array, items: { type: number }, minItems: 2, maxItems: 2 }
+            presenceRange: { type: array, items: { type: number }, minItems: 2, maxItems: 2 }
+            transientRange: { type: array, items: { type: number }, minItems: 2, maxItems: 2 }
+            noiseRange: { type: array, items: { type: number }, minItems: 2, maxItems: 2 }
+            satRange: { type: array, items: { type: number }, minItems: 2, maxItems: 2 }
+        positionEQ:
+          type: object
+          required: [lowShelf, presence, air]
+          properties:
+            lowShelf: { type: number }
+            presence: { type: number }
+            air: { type: number }
+
+    MorphRenderNoteRequest:
+      type: object
+      required: [packPath, note, velocity2, durationMs, sampleRate]
+      properties:
+        packPath: { type: string, description: "SamplerPack (sparse anchors) to use for source zone(s)" }
+        note: { type: integer, description: "MIDI note number" }
+        velocity2: { type: integer, minimum: 0, maximum: 16383 }
+        durationMs: { type: integer, minimum: 1 }
+        sampleRate: { type: integer, enum: [44100, 48000, 96000] }
+        timbre: { type: number, nullable: true, description: "Per-note MIDI 2 timbre 0..1" }
+        pressure: { type: number, nullable: true, description: "Per-note pressure 0..1" }
+        positionEQ: { $ref: '#/components/schemas/MorphingPreset/properties/positionEQ' }
+        pedalResonance: { type: boolean, default: false }
+        keyOffGain: { type: number, default: 0.2 }
+
+    MorphFitRequest:
+      type: object
+      required: [corpusId, anchors]
+      properties:
+        corpusId: { type: string }
+        anchors:
+          type: array
+          items:
+            type: object
+            required: [note, velocity2, path]
+            properties:
+              note: { type: integer }
+              velocity2: { type: integer }
+              path: { type: string }
+        method:
+          type: string
+          enum: [linear, smoothstep, ridge]
+          default: smoothstep

@@ -1,0 +1,30 @@
+{
+  "name": "PianoLeanPreset",
+  "velocityModel": {
+    "tiltRange": [
+      -1.5,
+      2.5
+    ],
+    "presenceRange": [
+      0.0,
+      4.0
+    ],
+    "transientRange": [
+      0.05,
+      0.5
+    ],
+    "noiseRange": [
+      0.0,
+      0.3
+    ],
+    "satRange": [
+      0.0,
+      0.4
+    ]
+  },
+  "positionEQ": {
+    "lowShelf": -1.0,
+    "presence": 2.0,
+    "air": 1.5
+  }
+}
