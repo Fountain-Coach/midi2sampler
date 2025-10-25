@@ -6,12 +6,12 @@
 // their dB spectra with a floor. This correlates with perceived spectral continuity.
 //
 import Foundation
-#if canImport(Accelerate) && USE_ACCELERATE
+#if false
 import Accelerate
 #endif
 
 public struct SpectralDistance {
-    #if canImport(Accelerate) && USE_ACCELERATE
+    #if false
     private var fftSetup: vDSP.FFT<Float>
     #endif
     private var fftSize: Int
@@ -21,7 +21,7 @@ public struct SpectralDistance {
         precondition(fftSize > 0 && (fftSize & (fftSize - 1)) == 0, "fftSize must be power of two")
         self.fftSize = fftSize
         self.logFloor = logFloor
-        #if canImport(Accelerate) && USE_ACCELERATE
+        #if false
         self.fftSetup = vDSP.FFT(
             log2n: vDSP_Length(Int(round(log2f(Float(fftSize))))),
             radix: .radix2,
@@ -34,7 +34,7 @@ public struct SpectralDistance {
     public mutating func distance(_ a: ArraySlice<Float>, _ b: ArraySlice<Float>) -> Float {
         let N = fftSize
         guard a.count >= N, b.count >= N else { return 0 }
-        #if canImport(Accelerate) && USE_ACCELERATE
+        #if false
         var w = [Float](repeating: 0, count: N)
         vDSP_hann_window(&w, vDSP_Length(N), Int32(vDSP_HANN_NORM))
 

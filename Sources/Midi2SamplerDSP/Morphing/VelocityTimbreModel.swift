@@ -8,17 +8,18 @@
 import Foundation
 
 public struct VelocityTimbreModel: Codable, Equatable {
-    public var tiltRange: (Float, Float)      // dB/Oct (low→high v)
-    public var presenceRange: (Float, Float)  // dB at ~3 kHz
-    public var transientRange: (Float, Float) // 0..1
-    public var noiseRange: (Float, Float)     // 0..1
-    public var satRange: (Float, Float)       // 0..1
+    public struct Pair: Codable, Equatable { public var min: Float; public var max: Float }
+    public var tiltRange: Pair      // dB/Oct (low→high v)
+    public var presenceRange: Pair  // dB at ~3 kHz
+    public var transientRange: Pair // 0..1
+    public var noiseRange: Pair     // 0..1
+    public var satRange: Pair       // 0..1
 
-    public init(tilt: (Float,Float),
-                presence: (Float,Float),
-                transient: (Float,Float),
-                noise: (Float,Float),
-                sat: (Float,Float)) {
+    public init(tilt: Pair,
+                presence: Pair,
+                transient: Pair,
+                noise: Pair,
+                sat: Pair) {
         self.tiltRange = tilt
         self.presenceRange = presence
         self.transientRange = transient
@@ -26,9 +27,9 @@ public struct VelocityTimbreModel: Codable, Equatable {
         self.satRange = sat
     }
 
-    @inlinable func curve(_ t: Float, _ r: (Float,Float)) -> Float {
+    @inlinable func curve(_ t: Float, _ r: Pair) -> Float {
         let tt = Window.smoothstep(clamp(t, 0, 1))
-        return r.0 + (r.1 - r.0) * tt
+        return r.min + (r.max - r.min) * tt
     }
 
     /// v2 is MIDI 2 velocity 0..16383

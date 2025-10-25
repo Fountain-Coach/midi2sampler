@@ -31,7 +31,7 @@ public struct SlewLimiter {
         self.maxDeltaPerSample = maxDeltaPerSample
     }
     /// Returns the smoothed value after applying a bounded step towards `target`.
-    @inlinable public mutating func process(target: Float) -> Float {
+    public mutating func process(target: Float) -> Float {
         let d = target - y
         let step = clamp(d, -maxDeltaPerSample, maxDeltaPerSample)
         y += step

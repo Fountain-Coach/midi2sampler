@@ -30,6 +30,6 @@ public struct PedalResonance {
         // write back in-place the input length portion
         for i in 0..<x.count { x[i] = y[i] }
         // save new tail
-        tail = Array(y[x.count:])
+        tail = Array(y.dropFirst(x.count))
     }
 }
