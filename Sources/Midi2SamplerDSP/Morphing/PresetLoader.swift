@@ -22,11 +22,11 @@ public enum PresetLoader {
         var p = proc
         let vm = preset.velocityModel
         p.model = VelocityTimbreModel(
-            tilt: (vm.tiltRange[0], vm.tiltRange[1]),
-            presence: (vm.presenceRange[0], vm.presenceRange[1]),
-            transient: (vm.transientRange[0], vm.transientRange[1]),
-            noise: (vm.noiseRange[0], vm.noiseRange[1]),
-            sat: (vm.satRange[0], vm.satRange[1])
+            tilt: .init(min: vm.tiltRange[0], max: vm.tiltRange[1]),
+            presence: .init(min: vm.presenceRange[0], max: vm.presenceRange[1]),
+            transient: .init(min: vm.transientRange[0], max: vm.transientRange[1]),
+            noise: .init(min: vm.noiseRange[0], max: vm.noiseRange[1]),
+            sat: .init(min: vm.satRange[0], max: vm.satRange[1])
         )
         p.setPositionEQ(lowShelf: preset.positionEQ.lowShelf,
                         presence: preset.positionEQ.presence,

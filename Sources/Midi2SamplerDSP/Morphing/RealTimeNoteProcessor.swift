@@ -7,11 +7,11 @@ import Foundation
 
 public final class RealTimeNoteProcessor {
     public var sampleRate: Float = 48000
-    public var model = VelocityTimbreModel(tilt: (-1.5, 2.5),
-                                           presence: (0, 4),
-                                           transient: (0.05, 0.5),
-                                           noise: (0.0, 0.3),
-                                           sat: (0.0, 0.4))
+    public var model = VelocityTimbreModel(tilt: .init(min: -1.5, max: 2.5),
+                                           presence: .init(min: 0, max: 4),
+                                           transient: .init(min: 0.05, max: 0.5),
+                                           noise: .init(min: 0.0, max: 0.3),
+                                           sat: .init(min: 0.0, max: 0.4))
 
     private var ls = Biquad()
     private var pr = Biquad()
