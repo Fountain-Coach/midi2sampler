@@ -26,6 +26,7 @@ let package = Package(
             exclude: [
                 "Corpus",
                 "Persistence",
+                "Service",
                 "Validation",
                 "LoopStitcher.swift",
                 "Resampler.swift",

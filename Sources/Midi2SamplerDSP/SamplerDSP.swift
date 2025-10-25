@@ -109,6 +109,6 @@ public func rms(_ x: [Float]) -> Float {
     guard !x.isEmpty else { return 0 }
     var acc: Float = 0
     for v in x { acc += v*v }
-    return (acc / Float(x.count)) ** 0.5
+    return sqrtf(acc / max(1, Float(x.count)))
     #endif
 }

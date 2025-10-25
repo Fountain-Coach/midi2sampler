@@ -9,6 +9,11 @@
 //
 import Foundation
 
+public enum DCMode {
+    case perWindow
+    case none
+}
+
 public struct ZoneCrossfader {
     public var matchLoudness: Bool = true
     public var dcMode: DCMode = .perWindow
