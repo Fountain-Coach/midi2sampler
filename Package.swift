@@ -12,9 +12,8 @@ let package = Package(
         .library(name: "Midi2SamplerDSP", targets: ["Midi2SamplerDSP"]),
     ],
     dependencies: [
-        // MIDI 2.0 dependency (GitHub). We pin to branch `main` here;
-        // feel free to replace with a version tag once released.
-        .package(url: "https://github.com/Fountain-Coach/midi2", branch: "main")
+        // MIDI 2.0 dependency (GitHub) — use a tagged, stable release
+        .package(url: "https://github.com/Fountain-Coach/midi2", from: "0.3.1")
     ],
     targets: [
         .target(
